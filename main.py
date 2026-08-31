@@ -24,50 +24,41 @@ import reportes
 # ------------------------------------------------------------------------------
 HORARIOS = [f"{h:02d}:00" for h in range(8, 21)]
 
-THEMES = {
-    "LIGHT": {
-        "primary": "#0288D1",       
-        "primary_light": "#5EB8FF", 
-        "primary_dark": "#01579B",  
-        "accent": "#009688",        
-        "success": "#4CAF50",
-        "warning": "#FF9800",
-        "danger": "#F44336",
-        "background": "#F5F7FA",    
-        "card": "#FFFFFF",          
-        "text": "#263238",          
-        "text_light": "#78909C",    
-        "border": "#CFD8DC"         
-    },
-    "DARK": {
-        "primary": "#0288D1",       
-        "primary_light": "#0288D1", 
-        "primary_dark": "#01579B",  
-        "accent": "#00BFA5",        
-        "success": "#388E3C",
-        "warning": "#F57C00",
-        "danger": "#D32F2F",
-        "background": "#121212",    
-        "card": "#1E1E1E",          
-        "text": "#E0E0E0",          
-        "text_light": "#9E9E9E",    
-        "border": "#333333"         
-    }
+COLORS = {
+    "primary": "#0288D1",       
+    "primary_light": "#5EB8FF", 
+    "primary_dark": "#01579B",  
+    "accent": "#009688",        
+    "success": "#4CAF50",
+    "warning": "#FF9800",
+    "danger": "#F44336",
+    "background": "#F5F7FA",    
+    "card": "#FFFFFF",          
+    "text": "#263238",          
+    "text_light": "#78909C",    
+    "border": "#CFD8DC"         
 }
-
-MODO_OSCURO = False
-COLORS = THEMES["LIGHT"]
 
 # Variables Globales de Estado
 rol_usuario_actual = None 
 turno_en_edicion = None
 
 # Componentes de ayuda para UI
-def crear_boton(parent, text, command, bg_color, fg_color="white", width=16, pady=8, font_size=9, bold=True):
+def crear_boton(parent, text, command, bg_color, fg_color="white", width=None, pady=8, font_size=9, bold=True):
     """Crea un botón estilizado reutilizable."""
     font_style = ("Segoe UI", font_size, "bold" if bold else "normal")
-    return tk.Button(parent, text=text, command=command, bg=bg_color, fg=fg_color,
-                     font=font_style, relief="flat", cursor="hand2", width=width, pady=pady, bd=0)
+    btn_kwargs = {
+        "bg": bg_color,
+        "fg": fg_color,
+        "font": font_style,
+        "relief": "flat",
+        "cursor": "hand2",
+        "pady": pady,
+        "bd": 0
+    }
+    if width is not None:
+        btn_kwargs["width"] = width
+    return tk.Button(parent, text=text, command=command, **btn_kwargs)
 
 # ==============================================================================
 # 🧠 BLOQUE BACKEND: FUNCIONES DE DATOS Y ESTADÍSTICAS
@@ -664,9 +655,9 @@ def abrir_gestion_usuarios():
     btn_frame = tk.Frame(panel_form, bg=COLORS["card"])
     btn_frame.pack(fill="x", pady=15)
 
-    crear_boton(btn_frame, "💾 Guardar", guardar_usuario_abm, COLORS["success"], width=10).pack(side="left", padx=2)
-    crear_boton(btn_frame, "🗑️ Eliminar", eliminar_usuario_abm, COLORS["danger"], width=10).pack(side="left", padx=2)
-    crear_boton(btn_frame, "🧹 Limpiar", limpiar_form_usr, COLORS["accent"], width=8).pack(side="left", padx=2)
+    crear_boton(btn_frame, "💾 Guardar", guardar_usuario_abm, COLORS["success"], pady=6).pack(side="left", expand=True, fill="x", padx=3)
+    crear_boton(btn_frame, "🗑️ Eliminar", eliminar_usuario_abm, COLORS["danger"], pady=6).pack(side="left", expand=True, fill="x", padx=3)
+    crear_boton(btn_frame, "🧹 Limpiar", limpiar_form_usr, COLORS["accent"], pady=6).pack(side="left", expand=True, fill="x", padx=3)
 
     refrescar_lista_usuarios()
 
@@ -1419,15 +1410,6 @@ def realizar_backup_manual():
     else:
         messagebox.showerror("Error", "No se pudo realizar el backup.")
 
-# --- MODO OSCURO / MODO CLARO (MEDIDOC 2.0) ---
-
-def alternar_modo_oscuro():
-    global MODO_OSCURO, COLORS
-    MODO_OSCURO = not MODO_OSCURO
-    COLORS = THEMES["DARK"] if MODO_OSCURO else THEMES["LIGHT"]
-    ventana.config(bg=COLORS["background"])
-    messagebox.showinfo("Tema Actualizado", f"Modo {'Oscuro' if MODO_OSCURO else 'Claro'} activado. Reinicie la aplicación si desea un refresco completo de la paleta.")
-
 # ==============================================================================
 # 🔐 BLOQUE LOGIN Y SEGURIDAD
 # ==============================================================================
@@ -1435,7 +1417,15 @@ def alternar_modo_oscuro():
 def mostrar_login(): 
     login_window = tk.Toplevel()
     login_window.title("Login MEDIDOC 2.0")
-    login_window.geometry("320x270")
+
+    # Centrar ventana de Login en la pantalla
+    ancho, alto = 320, 270
+    pantalla_ancho = login_window.winfo_screenwidth()
+    pantalla_alto = login_window.winfo_screenheight()
+    pos_x = (pantalla_ancho - ancho) // 2
+    pos_y = (pantalla_alto - alto) // 2
+    login_window.geometry(f"{ancho}x{alto}+{pos_x}+{pos_y}")
+
     login_window.config(bg=COLORS["background"])
     login_window.resizable(False, False)
 
@@ -1533,21 +1523,24 @@ fuente_elegida = "Segoe UI"
 default_font = tkfont.nametofont("TkDefaultFont")
 default_font.configure(family=fuente_elegida, size=10)
 
+def salir_aplicacion():
+    """Muestra confirmación y cierra la aplicación de forma segura."""
+    if messagebox.askyesno("Salir", "¿Está seguro de que desea salir de MEDIDOC 2.0?"):
+        ventana.destroy()
+
 # --- MENU SUPERIOR ---
 menu_bar = tk.Menu(ventana)
 ventana.config(menu=menu_bar)
 
 menu_config = tk.Menu(menu_bar, tearoff=0)
-menu_bar.add_cascade(label="Archivo / Configuración", menu=menu_config)
-menu_config.add_command(label="👥 Gestión de Usuarios y Permisos", command=abrir_gestion_usuarios)
-menu_config.add_command(label="⚙️ Configuración de Clínica y WhatsApp", command=abrir_configuracion_clinica)
+menu_bar.add_cascade(label="Archivo", menu=menu_config)
 menu_config.add_command(label="👨‍⚕️ Administrar Médicos", command=abrir_gestion_medicos)
-menu_config.add_command(label="💾 Realizar Copia de Seguridad (Backup)", command=realizar_backup_manual)
+menu_config.add_command(label="⚙️ Configuración de Clínica y WhatsApp", command=abrir_configuracion_clinica)
 menu_config.add_command(label="📊 Exportar Turnos a CSV", command=exportar_turnos_csv)
-
-menu_ver = tk.Menu(menu_bar, tearoff=0)
-menu_bar.add_cascade(label="Ver / Apariencia", menu=menu_ver)
-menu_ver.add_command(label="🌙 / ☀️ Alternar Modo Oscuro", command=alternar_modo_oscuro)
+menu_config.add_command(label="👥 Gestión de Usuarios y Permisos", command=abrir_gestion_usuarios)
+menu_config.add_command(label="💾 Realizar Copia de Seguridad (Backup)", command=realizar_backup_manual)
+menu_config.add_separator()
+menu_config.add_command(label="🚪 Salir", command=salir_aplicacion)
 
 # --- HEADER ---
 header = tk.Frame(ventana, bg=COLORS["primary"], height=70)
@@ -1559,10 +1552,6 @@ tk.Label(header, text="🏥 MEDIDOC 2.0", font=("Segoe UI", 20, "bold"),
 
 tk.Label(header, text="Sistema de Gestión Médica Inteligente", font=("Segoe UI", 10),
          bg=COLORS["primary"], fg=COLORS["primary_light"]).pack(side="left")
-
-btn_tema = tk.Button(header, text="🌙 / ☀️ Tema", command=alternar_modo_oscuro,
-                     bg=COLORS["primary_dark"], fg="white", font=("Segoe UI", 9, "bold"), relief="flat", bd=0, padx=10, pady=5)
-btn_tema.pack(side="right", padx=20)
 
 notebook = ttk.Notebook(ventana)
 notebook.pack(fill="both", expand=True, padx=10, pady=10)
