@@ -447,21 +447,103 @@ def enviar_whatsapp():
         messagebox.showerror("Error", f"El paciente {nombre_paciente} no tiene un teléfono válido registrado.")
         return
 
-    mensaje = f"""Hola {nombre_paciente}, le recordamos su turno del {fecha} a las {hora} hs con el Dr/a {medico}.
+    # Cargar configuración dinámica de la clínica y WhatsApp
+    config = database.obtener_configuracion_db()
+    nombre_clinica = config.get("nombre_clinica", "MEDIDOC 2.0 Soft")
+    codigo_pais = config.get("codigo_pais", "549").strip()
+    plantilla = config.get("plantilla_whatsapp", "Hola {paciente}, le recordamos su turno del {fecha} a las {hora} hs con el Dr/a {medico}.\n\n1 - Confirmar\n2 - Cancelar\n3 - Modificar\n\nSaludos, {clinica}")
 
-1 - Confirmar
-2 - Cancelar
-3 - Modificar
-
-Saludos, MEDIDOC 2.0 Soft"""
+    try:
+        mensaje = plantilla.format(
+            paciente=nombre_paciente,
+            fecha=fecha,
+            hora=hora,
+            medico=medico,
+            clinica=nombre_clinica
+        )
+    except Exception:
+        mensaje = f"Hola {nombre_paciente}, le recordamos su turno del {fecha} a las {hora} hs con el Dr/a {medico}.\n\nSaludos, {nombre_clinica}"
 
     mensaje_codificado = quote(mensaje)
     
-    if not telefono.startswith("54"): 
-        telefono = "549" + telefono 
+    if codigo_pais and not telefono.startswith(codigo_pais): 
+        telefono = codigo_pais + telefono 
         
     url = f"https://web.whatsapp.com/send?phone={telefono}&text={mensaje_codificado}"
     webbrowser.open(url, new=0, autoraise=True)
+
+def abrir_configuracion_clinica():
+    """Abre la ventana modal para configurar los datos de la clínica y WhatsApp."""
+    if rol_usuario_actual == "Medico":
+        messagebox.showerror("Acceso Denegado", "No tiene permisos para modificar la configuración de la clínica.")
+        return
+
+    ventana_cfg = tk.Toplevel(ventana)
+    ventana_cfg.title("⚙️ Configuración de Clínica y WhatsApp")
+    ventana_cfg.geometry("600x550")
+    ventana_cfg.minsize(550, 500)
+    ventana_cfg.config(bg=COLORS["background"])
+
+    header_cfg = tk.Frame(ventana_cfg, bg=COLORS["primary"], height=60)
+    header_cfg.pack(fill="x")
+    tk.Label(header_cfg, text="⚙️ Configuración General y WhatsApp", font=("Segoe UI", 14, "bold"),
+             bg=COLORS["primary"], fg="white").pack(pady=12)
+
+    main_cfg = tk.Frame(ventana_cfg, bg=COLORS["card"], padx=20, pady=20)
+    main_cfg.pack(fill="both", expand=True, padx=20, pady=20)
+    main_cfg.config(highlightbackground=COLORS["border"], highlightthickness=1)
+
+    cfg_actual = database.obtener_configuracion_db()
+
+    tk.Label(main_cfg, text="Nombre de la Clínica / Consultorio:", font=("Segoe UI", 10, "bold"),
+             bg=COLORS["card"], fg=COLORS["text"]).pack(anchor="w", pady=(0, 2))
+    entry_clinica = ttk.Entry(main_cfg, font=("Segoe UI", 10))
+    entry_clinica.pack(fill="x", pady=(0, 15))
+    entry_clinica.insert(0, cfg_actual.get("nombre_clinica", "MEDIDOC 2.0 Soft"))
+
+    tk.Label(main_cfg, text="Código Internacional de País (ej: 549 para Arg, 521 para MX, 34 para España):", font=("Segoe UI", 10, "bold"),
+             bg=COLORS["card"], fg=COLORS["text"]).pack(anchor="w", pady=(0, 2))
+    entry_codigo_pais = ttk.Entry(main_cfg, font=("Segoe UI", 10))
+    entry_codigo_pais.pack(fill="x", pady=(0, 15))
+    entry_codigo_pais.insert(0, cfg_actual.get("codigo_pais", "549"))
+
+    tk.Label(main_cfg, text="Plantilla de Mensaje de WhatsApp (Recordatorios):", font=("Segoe UI", 10, "bold"),
+             bg=COLORS["card"], fg=COLORS["text"]).pack(anchor="w", pady=(0, 2))
+    
+    info_txt = "Variables disponibles: {paciente}, {fecha}, {hora}, {medico}, {clinica}"
+    tk.Label(main_cfg, text=info_txt, font=("Segoe UI", 8, "italic"),
+             bg=COLORS["card"], fg=COLORS["text_light"]).pack(anchor="w", pady=(0, 5))
+
+    text_plantilla = tk.Text(main_cfg, height=7, font=("Segoe UI", 9), wrap="word")
+    text_plantilla.pack(fill="both", expand=True, pady=(0, 15))
+    plantilla_def = cfg_actual.get("plantilla_whatsapp", "Hola {paciente}, le recordamos su turno del {fecha} a las {hora} hs con el Dr/a {medico}.\n\n1 - Confirmar\n2 - Cancelar\n3 - Modificar\n\nSaludos, {clinica}")
+    text_plantilla.insert("1.0", plantilla_def)
+
+    def guardar_cambios():
+        nom = entry_clinica.get().strip()
+        cod = entry_codigo_pais.get().strip()
+        plan = text_plantilla.get("1.0", "end-1c").strip()
+
+        if not nom:
+            messagebox.showerror("Error", "El nombre de la clínica no puede estar vacío.")
+            return
+
+        nuevos_datos = {
+            "nombre_clinica": nom,
+            "codigo_pais": cod,
+            "plantilla_whatsapp": plan
+        }
+
+        if database.guardar_configuracion_db(nuevos_datos):
+            messagebox.showinfo("Éxito", "¡Configuración guardada correctamente!")
+            ventana_cfg.destroy()
+        else:
+            messagebox.showerror("Error", "No se pudo guardar la configuración en la base de datos.")
+
+    btn_frame = tk.Frame(main_cfg, bg=COLORS["card"])
+    btn_frame.pack(fill="x")
+    
+    crear_boton(btn_frame, "💾 Guardar Configuración", guardar_cambios, COLORS["primary"], width=25).pack(pady=5)
 
 def registrar_llegada_desde_turnos():
     """Envía al paciente seleccionado a la Sala de Espera 'En Vivo'."""
@@ -654,8 +736,13 @@ def notificar_lista_espera_vacante(medico_nombre, fecha, hora):
                             f"Se liberó un turno con {medico_nombre} para el {fecha} a las {hora}.\n\n"
                             f"¿Desea enviar una invitación por WhatsApp a {prox['paciente']} (Lista de Espera)?"):
         tel = re.sub(r'\D', '', str(prox['telefono']))
-        if not tel.startswith("54"): tel = "549" + tel
-        msg = f"Hola {prox['paciente']}, se liberó un turno con {medico_nombre} para el {fecha} a las {hora} hs. ¿Desea confirmarlo? Saludos, MEDIDOC 2.0"
+        config = database.obtener_configuracion_db()
+        nombre_clinica = config.get("nombre_clinica", "MEDIDOC 2.0")
+        codigo_pais = config.get("codigo_pais", "549").strip()
+
+        if codigo_pais and not tel.startswith(codigo_pais):
+            tel = codigo_pais + tel
+        msg = f"Hola {prox['paciente']}, se liberó un turno con {medico_nombre} para el {fecha} a las {hora} hs. ¿Desea confirmarlo? Saludos, {nombre_clinica}"
         url = f"https://web.whatsapp.com/send?phone={tel}&text={quote(msg)}"
         webbrowser.open(url)
         database.cambiar_estado_lista_espera_db(prox["id"], "Notificado")
@@ -1322,8 +1409,9 @@ menu_bar = tk.Menu(ventana)
 ventana.config(menu=menu_bar)
 
 menu_config = tk.Menu(menu_bar, tearoff=0)
-menu_bar.add_cascade(label="Archivo", menu=menu_config)
-menu_config.add_command(label="Administrar Médicos", command=abrir_gestion_medicos)
+menu_bar.add_cascade(label="Archivo / Configuración", menu=menu_config)
+menu_config.add_command(label="⚙️ Configuración de Clínica y WhatsApp", command=abrir_configuracion_clinica)
+menu_config.add_command(label="👨‍⚕️ Administrar Médicos", command=abrir_gestion_medicos)
 menu_config.add_command(label="💾 Realizar Copia de Seguridad (Backup)", command=realizar_backup_manual)
 menu_config.add_command(label="📊 Exportar Turnos a CSV", command=exportar_turnos_csv)
 

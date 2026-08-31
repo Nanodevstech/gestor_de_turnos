@@ -112,6 +112,30 @@ def inicializar_tablas():
                 dni_paciente TEXT, nombre_archivo TEXT, ruta_archivo TEXT, fecha_subida TEXT, categoria TEXT
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Configuracion (
+                clave TEXT PRIMARY KEY, valor TEXT
+            )
+        """)
+
+        # Si la tabla Usuarios está vacía, crear usuario Admin por defecto
+        cursor.execute("SELECT COUNT(*) FROM Usuarios")
+        res = cursor.fetchone()
+        if res and res[0] == 0:
+            pass_default = hash_password("admin123")
+            cursor.execute(
+                "INSERT INTO Usuarios (usuario, password, rol) VALUES (?, ?, ?)",
+                ("Admin", pass_default, "Admin")
+            )
+
+        # Cargar valores por defecto en Configuracion si no existen
+        defaults = {
+            "nombre_clinica": "MEDIDOC 2.0 Soft",
+            "codigo_pais": "549",
+            "plantilla_whatsapp": "Hola {paciente}, le recordamos su turno del {fecha} a las {hora} hs con el Dr/a {medico}.\n\n1 - Confirmar\n2 - Cancelar\n3 - Modificar\n\nSaludos, {clinica}"
+        }
+        for k, v in defaults.items():
+            cursor.execute("INSERT OR IGNORE INTO Configuracion (clave, valor) VALUES (?, ?)", (k, v))
 
 # Inicialización automática de esquema
 inicializar_tablas()
@@ -561,3 +585,26 @@ def obtener_historial_db(dni):
         sql = "SELECT fecha, hora, observacion FROM Historial WHERE dni_paciente = ? ORDER BY id DESC"
         cursor.execute(sql, (dni,))
         return [{"fecha": d[0], "hora": d[1], "observacion": d[2]} for d in cursor.fetchall()]
+
+# ==============================================================================
+# ⚙️ SECCIÓN: CONFIGURACIÓN GENERAL Y WHATSAPP
+# ==============================================================================
+
+def obtener_configuracion_db():
+    """Retorna un diccionario con todas las claves y valores de configuración."""
+    with obtener_cursor() as cursor:
+        if cursor is None: return {}
+        cursor.execute("SELECT clave, valor FROM Configuracion")
+        filas = cursor.fetchall()
+        return {f[0]: f[1] for f in filas}
+
+def guardar_configuracion_db(config_dict):
+    """Guarda o actualiza claves de configuración en la BD."""
+    with obtener_cursor() as cursor:
+        if cursor is None: return False
+        for k, v in config_dict.items():
+            cursor.execute(
+                "INSERT INTO Configuracion (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+                (k, v)
+            )
+        return True

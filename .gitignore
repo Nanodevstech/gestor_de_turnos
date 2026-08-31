@@ -1,0 +1,22 @@
+# Base de datos SQLite y backups
+Turnos.db
+*.db
+*.sqlite
+*.sqlite3
+backups/
+adjuntos/
+
+# Python bytecode y caché
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales y configuraciones locales
+.env
+.env.local
+venv/
+env/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
