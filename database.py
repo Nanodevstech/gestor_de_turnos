@@ -553,6 +553,43 @@ def validar_login_db(usuario, password):
     finally:
         conn.close()
 
+def obtener_usuarios_db():
+    """Retorna la lista de usuarios registrados con su rol."""
+    with obtener_cursor() as cursor:
+        if cursor is None: return []
+        cursor.execute("SELECT usuario, rol FROM Usuarios ORDER BY usuario ASC")
+        return [{"usuario": f[0], "rol": f[1]} for f in cursor.fetchall()]
+
+def guardar_usuario_db(usuario, password, rol):
+    """Guarda (INSERT) o actualiza (UPDATE) un usuario con su contraseña hasheada y rol."""
+    with obtener_cursor() as cursor:
+        if cursor is None: return False
+        cursor.execute("SELECT usuario FROM Usuarios WHERE usuario = ?", (usuario,))
+        existe = cursor.fetchone()
+
+        if existe:
+            if password:
+                pass_hash = hash_password(password)
+                sql = "UPDATE Usuarios SET password = ?, rol = ? WHERE usuario = ?"
+                cursor.execute(sql, (pass_hash, rol, usuario))
+            else:
+                sql = "UPDATE Usuarios SET rol = ? WHERE usuario = ?"
+                cursor.execute(sql, (rol, usuario))
+        else:
+            if not password:
+                return False
+            pass_hash = hash_password(password)
+            sql = "INSERT INTO Usuarios (usuario, password, rol) VALUES (?, ?, ?)"
+            cursor.execute(sql, (usuario, pass_hash, rol))
+        return True
+
+def eliminar_usuario_db(usuario):
+    """Elimina un usuario de la base de datos."""
+    with obtener_cursor() as cursor:
+        if cursor is None: return False
+        cursor.execute("DELETE FROM Usuarios WHERE usuario = ?", (usuario,))
+        return True
+
 def crear_backup_db():
     """Genera una copia de seguridad timestamped de Turnos.db."""
     try:

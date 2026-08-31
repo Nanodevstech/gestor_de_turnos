@@ -545,6 +545,131 @@ def abrir_configuracion_clinica():
     
     crear_boton(btn_frame, "💾 Guardar Configuración", guardar_cambios, COLORS["primary"], width=25).pack(pady=5)
 
+def abrir_gestion_usuarios():
+    """Abre la ventana de ABM de Usuarios (Crear, Editar, Eliminar usuarios y asignar roles Admin/Medico)."""
+    if rol_usuario_actual != "Admin":
+        messagebox.showerror("Acceso Denegado", "Solo los usuarios Administradores pueden gestionar usuarios y permisos.")
+        return
+
+    ventana_usr = tk.Toplevel(ventana)
+    ventana_usr.title("👥 Gestión de Usuarios y Permisos")
+    ventana_usr.minsize(800, 500)
+    ventana_usr.config(bg=COLORS["background"])
+
+    header_usr = tk.Frame(ventana_usr, bg=COLORS["primary"], height=60)
+    header_usr.pack(fill="x")
+    tk.Label(header_usr, text="👥 Administración de Usuarios y Permisos del Sistema", font=("Segoe UI", 15, "bold"),
+             bg=COLORS["primary"], fg="white").pack(pady=12)
+
+    main_usr = tk.Frame(ventana_usr, bg=COLORS["background"])
+    main_usr.pack(fill="both", expand=True, padx=20, pady=20)
+
+    # PANEL IZQUIERDO: Formulario
+    panel_form = tk.Frame(main_usr, bg=COLORS["card"], padx=20, pady=20)
+    panel_form.pack(side="left", fill="both", expand=True, padx=(0, 10))
+    panel_form.config(highlightbackground=COLORS["border"], highlightthickness=1)
+
+    tk.Label(panel_form, text="Nuevo / Editar Usuario", font=("Segoe UI", 12, "bold"),
+             bg=COLORS["card"], fg=COLORS["text"]).pack(anchor="w", pady=(0, 15))
+
+    tk.Label(panel_form, text="Nombre de Usuario:", bg=COLORS["card"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
+    ent_usr_nombre = ttk.Entry(panel_form, font=("Segoe UI", 9))
+    ent_usr_nombre.pack(fill="x", pady=(2, 10))
+
+    tk.Label(panel_form, text="Contraseña:", bg=COLORS["card"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
+    ent_usr_pass = ttk.Entry(panel_form, show="*", font=("Segoe UI", 9))
+    ent_usr_pass.pack(fill="x", pady=(2, 2))
+    tk.Label(panel_form, text="(Dejar en blanco al editar para mantener la clave actual)", font=("Segoe UI", 8, "italic"),
+             bg=COLORS["card"], fg=COLORS["text_light"]).pack(anchor="w", pady=(0, 10))
+
+    tk.Label(panel_form, text="Rol del Usuario:", bg=COLORS["card"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
+    combo_usr_rol = ttk.Combobox(panel_form, values=["Admin", "Medico"], state="readonly", font=("Segoe UI", 9))
+    combo_usr_rol.set("Medico")
+    combo_usr_rol.pack(fill="x", pady=(2, 15))
+
+    # PANEL DERECHO: Tabla de Usuarios
+    panel_lista = tk.Frame(main_usr, bg=COLORS["card"], padx=10, pady=10)
+    panel_lista.pack(side="right", fill="both", expand=True)
+    panel_lista.config(highlightbackground=COLORS["border"], highlightthickness=1)
+
+    cols = ("usuario", "rol")
+    tree_usuarios = ttk.Treeview(panel_lista, columns=cols, show="headings", height=12)
+    tree_usuarios.heading("usuario", text="Usuario")
+    tree_usuarios.heading("rol", text="Rol de Acceso")
+    tree_usuarios.column("usuario", width=150, anchor="center")
+    tree_usuarios.column("rol", width=120, anchor="center")
+    tree_usuarios.pack(fill="both", expand=True)
+
+    def limpiar_form_usr():
+        ent_usr_nombre.delete(0, tk.END)
+        ent_usr_pass.delete(0, tk.END)
+        combo_usr_rol.set("Medico")
+
+    def refrescar_lista_usuarios():
+        for item in tree_usuarios.get_children():
+            tree_usuarios.delete(item)
+        usuarios = database.obtener_usuarios_db()
+        for u in usuarios:
+            tree_usuarios.insert("", "end", values=(u["usuario"], u["rol"]))
+
+    def al_seleccionar_usuario(event):
+        selected = tree_usuarios.focus()
+        if not selected: return
+        vals = tree_usuarios.item(selected)["values"]
+        if vals:
+            ent_usr_nombre.delete(0, tk.END)
+            ent_usr_nombre.insert(0, vals[0])
+            combo_usr_rol.set(vals[1])
+            ent_usr_pass.delete(0, tk.END)
+
+    tree_usuarios.bind("<<TreeviewSelect>>", al_seleccionar_usuario)
+
+    def guardar_usuario_abm():
+        u_nombre = ent_usr_nombre.get().strip()
+        u_pass = ent_usr_pass.get().strip()
+        u_rol = combo_usr_rol.get().strip()
+
+        if not u_nombre:
+            messagebox.showwarning("Atención", "El nombre de usuario es obligatorio.")
+            return
+
+        exito = database.guardar_usuario_db(u_nombre, u_pass, u_rol)
+        if exito:
+            limpiar_form_usr()
+            refrescar_lista_usuarios()
+            messagebox.showinfo("Éxito", f"Usuario '{u_nombre}' guardado correctamente.")
+        else:
+            messagebox.showerror("Error", "No se pudo guardar el usuario. Para un usuario nuevo, debe ingresar una contraseña.")
+
+    def eliminar_usuario_abm():
+        selected = tree_usuarios.focus()
+        if not selected:
+            messagebox.showwarning("Atención", "Seleccione un usuario de la lista.")
+            return
+        vals = tree_usuarios.item(selected)["values"]
+        u_sel = vals[0]
+
+        if u_sel == "Admin" and len(database.obtener_usuarios_db()) <= 1:
+            messagebox.showerror("Error", "No se puede eliminar el único usuario administrador.")
+            return
+
+        if messagebox.askyesno("Confirmar Eliminación", f"¿Está seguro de eliminar al usuario '{u_sel}'?"):
+            if database.eliminar_usuario_db(u_sel):
+                limpiar_form_usr()
+                refrescar_lista_usuarios()
+                messagebox.showinfo("Éxito", "Usuario eliminado correctamente.")
+            else:
+                messagebox.showerror("Error", "No se pudo eliminar el usuario.")
+
+    btn_frame = tk.Frame(panel_form, bg=COLORS["card"])
+    btn_frame.pack(fill="x", pady=15)
+
+    crear_boton(btn_frame, "💾 Guardar", guardar_usuario_abm, COLORS["success"], width=10).pack(side="left", padx=2)
+    crear_boton(btn_frame, "🗑️ Eliminar", eliminar_usuario_abm, COLORS["danger"], width=10).pack(side="left", padx=2)
+    crear_boton(btn_frame, "🧹 Limpiar", limpiar_form_usr, COLORS["accent"], width=8).pack(side="left", padx=2)
+
+    refrescar_lista_usuarios()
+
 def registrar_llegada_desde_turnos():
     """Envía al paciente seleccionado a la Sala de Espera 'En Vivo'."""
     selected = tabla_turnos.focus()
@@ -1375,14 +1500,18 @@ def aplicar_permisos_rol():
             pass
 
         try:
-            menu_bar.entryconfig("Administrar Médicos", state="disabled")
+            menu_config.entryconfig("👥 Gestión de Usuarios y Permisos", state="disabled")
+            menu_config.entryconfig("⚙️ Configuración de Clínica y WhatsApp", state="disabled")
+            menu_config.entryconfig("👨‍⚕️ Administrar Médicos", state="disabled")
         except Exception:
             pass
 
     elif rol_usuario_actual == "Admin":
         try:
             notebook.add(tab_turnos, text="Gestión de Turnos") 
-            menu_bar.entryconfig("Administrar Médicos", state="normal")
+            menu_config.entryconfig("👥 Gestión de Usuarios y Permisos", state="normal")
+            menu_config.entryconfig("⚙️ Configuración de Clínica y WhatsApp", state="normal")
+            menu_config.entryconfig("👨‍⚕️ Administrar Médicos", state="normal")
         except Exception:
             pass
 
@@ -1410,6 +1539,7 @@ ventana.config(menu=menu_bar)
 
 menu_config = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Archivo / Configuración", menu=menu_config)
+menu_config.add_command(label="👥 Gestión de Usuarios y Permisos", command=abrir_gestion_usuarios)
 menu_config.add_command(label="⚙️ Configuración de Clínica y WhatsApp", command=abrir_configuracion_clinica)
 menu_config.add_command(label="👨‍⚕️ Administrar Médicos", command=abrir_gestion_medicos)
 menu_config.add_command(label="💾 Realizar Copia de Seguridad (Backup)", command=realizar_backup_manual)
